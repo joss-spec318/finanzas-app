@@ -136,13 +136,15 @@
                 localStorage.setItem('finanzas_transactions', JSON.stringify(transactions));
             }, [transactions]);
 
-            // Estados para formularios
+            // Estados para formularios de Gastos
+            const [editingTxId, setEditingTxId] = useState(null);
             const [newTx, setNewTx] = useState({ date: new Date().toISOString().split('T')[0], amount: '', place: '', categoryId: '', method: 'Débito' });
-            const [newCat, setNewCat] = useState({ name: '', budget: '' });
             
-            // Estado para edición de categorías
+            // Estados para formularios de Categorías
+            const [newCat, setNewCat] = useState({ name: '', budget: '' });
             const [editingCatId, setEditingCatId] = useState(null);
             const [editCatData, setEditCatData] = useState({ name: '', budget: '' });
+            const [catErrorMsg, setCatErrorMsg] = useState("");
 
             // Cálculos basados en el rango de fechas seleccionado
             const filteredTransactions = useMemo(() => {
@@ -169,16 +171,44 @@
             const totalSpent = filteredTransactions.reduce((sum, t) => sum + Number(t.amount), 0);
             const totalRemaining = totalBudget - totalSpent;
 
-            // Manejadores
+            // Manejadores de Gastos
             const handleAddTransaction = (e) => {
                 e.preventDefault();
                 if (!newTx.amount || !newTx.place || !newTx.categoryId) return;
                 
-                setTransactions([{ ...newTx, id: Date.now().toString() }, ...transactions]);
+                if (editingTxId) {
+                    // Actualizar gasto existente
+                    setTransactions(transactions.map(t => 
+                        t.id === editingTxId ? { ...newTx, id: editingTxId } : t
+                    ));
+                    setEditingTxId(null);
+                } else {
+                    // Crear nuevo gasto
+                    setTransactions([{ ...newTx, id: Date.now().toString() }, ...transactions]);
+                }
+                
                 setNewTx({ ...newTx, amount: '', place: '' }); 
                 setActiveTab('dashboard'); 
             };
 
+            const startEditTx = (tx) => {
+                setEditingTxId(tx.id);
+                setNewTx({ ...tx });
+                setActiveTab('add');
+            };
+
+            const cancelEditTx = () => {
+                setEditingTxId(null);
+                setNewTx({ date: new Date().toISOString().split('T')[0], amount: '', place: '', categoryId: '', method: 'Débito' });
+                setActiveTab('dashboard');
+            };
+
+            const deleteTx = (id) => {
+                // Elimina el gasto directamente
+                setTransactions(transactions.filter(t => t.id !== id));
+            };
+
+            // Manejadores de Categorías
             const handleAddCategory = (e) => {
                 e.preventDefault();
                 if (!newCat.name || !newCat.budget) return;
@@ -204,8 +234,9 @@
             const deleteCategory = (id) => {
                 const hasTransactions = transactions.some(t => t.categoryId === id);
                 if (hasTransactions) {
-                alert("No puedes eliminar esta categoría porque tiene gastos asociados. Mejor archívala para ocultarla en nuevos gastos.");
-                return;
+                    setCatErrorMsg("No puedes eliminar esta categoría porque tiene gastos asociados. Mejor archívala usando el ícono amarillo para ocultarla en nuevos gastos.");
+                    setTimeout(() => setCatErrorMsg(""), 6000);
+                    return;
                 }
                 setCategories(categories.filter(cat => cat.id !== id));
             };
@@ -312,13 +343,61 @@
                     )}
                     </div>
                 </div>
+
+                {/* --- NUEVA SECCIÓN: Historial de Gastos --- */}
+                <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden mt-6">
+                    <div className="p-4 border-b border-slate-100 bg-slate-50">
+                        <h3 className="font-semibold text-slate-700">Historial de Gastos</h3>
+                    </div>
+                    <div className="p-4 space-y-3">
+                    {filteredTransactions.length === 0 ? (
+                        <p className="text-sm text-slate-500 text-center py-4">No hay gastos en este periodo.</p>
+                    ) : (
+                        // Ordenar por fecha descendente
+                        [...filteredTransactions].sort((a, b) => new Date(b.date) - new Date(a.date)).map(tx => {
+                            const cat = categories.find(c => c.id === tx.categoryId);
+                            return (
+                                <div key={tx.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                    <div className="flex-1">
+                                        <p className="font-medium text-slate-700">{tx.place}</p>
+                                        <p className="text-xs text-slate-500 mt-0.5">{tx.date} • {cat ? cat.name : 'Desconocida'} • {tx.method}</p>
+                                    </div>
+                                    <div className="flex flex-col items-end gap-2">
+                                        <span className="font-bold text-slate-800">₡{Number(tx.amount).toLocaleString()}</span>
+                                        <div className="flex gap-1.5">
+                                            <button 
+                                                onClick={() => startEditTx(tx)}
+                                                className="p-1.5 text-blue-600 bg-blue-50 rounded hover:bg-blue-100 transition-colors"
+                                                title="Editar gasto"
+                                            >
+                                                <IconEdit />
+                                            </button>
+                                            <button 
+                                                onClick={() => deleteTx(tx.id)}
+                                                className="p-1.5 text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors"
+                                                title="Eliminar gasto"
+                                            >
+                                                <IconTrash />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
+                    </div>
+                </div>
+                {/* --- FIN Historial de Gastos --- */}
+
                 </div>
             );
 
             const renderAddTransaction = () => (
                 <div className="space-y-6 pb-20">
                 <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100">
-                    <h2 className="font-bold text-xl text-slate-800 mb-4">Nuevo Gasto</h2>
+                    <h2 className="font-bold text-xl text-slate-800 mb-4">
+                        {editingTxId ? 'Editar Gasto' : 'Nuevo Gasto'}
+                    </h2>
                     <form onSubmit={handleAddTransaction} className="space-y-4">
                     
                     <div>
@@ -394,12 +473,30 @@
                         </div>
                     </div>
 
-                    <button 
-                        type="submit"
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-md transition-colors mt-4"
-                    >
-                        Guardar Gasto
-                    </button>
+                    {editingTxId ? (
+                        <div className="flex gap-2 mt-4">
+                            <button 
+                                type="button"
+                                onClick={cancelEditTx}
+                                className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-3.5 rounded-xl transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                            <button 
+                                type="submit"
+                                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-md transition-colors"
+                            >
+                                Actualizar
+                            </button>
+                        </div>
+                    ) : (
+                        <button 
+                            type="submit"
+                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-md transition-colors mt-4"
+                        >
+                            Guardar Gasto
+                        </button>
+                    )}
                     </form>
                 </div>
                 </div>
@@ -412,6 +509,12 @@
                     {editingCatId ? 'Editar Categoría' : 'Nueva Categoría'}
                     </h2>
                     
+                    {catErrorMsg && (
+                        <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded-lg border border-red-100">
+                            {catErrorMsg}
+                        </div>
+                    )}
+
                     {editingCatId ? (
                     <form onSubmit={handleUpdateCategory} className="space-y-4">
                         <div>
@@ -560,7 +663,11 @@
                     </button>
                     
                     <button 
-                        onClick={() => setActiveTab('add')}
+                        onClick={() => {
+                            setEditingTxId(null);
+                            setNewTx({ date: new Date().toISOString().split('T')[0], amount: '', place: '', categoryId: '', method: 'Débito' });
+                            setActiveTab('add');
+                        }}
                         className={`flex flex-col items-center p-2 min-w-[70px] ${activeTab === 'add' ? 'text-emerald-600' : 'text-slate-400'}`}
                     >
                         <div className={`rounded-full p-2 mb-1 ${activeTab === 'add' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100'}`}>
