@@ -42,7 +42,7 @@
             const [newTx, setNewTx] = useState({ date: new Date().toISOString().split('T')[0], amount: '', place: '', categoryId: '', subcategoryId: '', method: 'Débito' });
             const [editingTxId, setEditingTxId] = useState(null);
 
-            // Historial ordenado por fecha (el más reciente primero)
+            // Ordenado por fecha (reciente primero)
             const sortedTransactions = useMemo(() => {
                 return [...transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
             }, [transactions]);
