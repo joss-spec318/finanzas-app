@@ -5,119 +5,690 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Mis Finanzas</title>
     
+    <!-- React & ReactDOM (Librerías principales) -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel (Para que el navegador entienda JSX) -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS (Para los estilos) -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons (Para los iconos) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Configuración para PWA (Instalación en celular) -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#059669">
+
+    <!-- Configuración Manifest Avanzada para forzar PWA (Pantalla completa sin barra) -->
+    <link rel="manifest" id="manifest-link">
+    <script>
+        const manifest = {
+            "name": "Mis Finanzas",
+            "short_name": "Finanzas",
+            "start_url": ".",
+            "display": "standalone",
+            "background_color": "#f8fafc",
+            "theme_color": "#059669",
+            "icons": [
+                {
+                    "src": "data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23059669' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='20' height='12' x='2' y='6' rx='2'/%3E%3Ccircle cx='12' cy='12' r='2'/%3E%3Cpath d='M6 12h.01M18 12h.01'/%3E%3C/svg%3E",
+                    "sizes": "192x192",
+                    "type": "image/svg+xml"
+                },
+                {
+                    "src": "data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23059669' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='20' height='12' x='2' y='6' rx='2'/%3E%3Ccircle cx='12' cy='12' r='2'/%3E%3Cpath d='M6 12h.01M18 12h.01'/%3E%3C/svg%3E",
+                    "sizes": "512x512",
+                    "type": "image/svg+xml"
+                }
+            ]
+        };
+        const blob = new Blob([JSON.stringify(manifest)], {type: 'application/manifest+json'});
+        document.getElementById('manifest-link').setAttribute('href', URL.createObjectURL(blob));
+    </script>
 
     <style>
-        body { -webkit-tap-highlight-color: transparent; user-select: none; }
-        input, select, textarea { user-select: text; }
-        .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
+        /* Ajustes adicionales para que parezca una app móvil real */
+        body {
+            -webkit-tap-highlight-color: transparent;
+            user-select: none; /* Evitar que el texto se seleccione al hacer toques rápidos */
+        }
+        input, select, textarea {
+            user-select: text; /* Permitir seleccionar texto dentro de los inputs */
+        }
+        .pb-safe {
+            padding-bottom: env(safe-area-inset-bottom, 20px);
+        }
     </style>
 </head>
 <body class="bg-slate-50 font-sans text-slate-900">
     
+    <!-- Aquí es donde se dibujará la aplicación -->
     <div id="root"></div>
 
+    <!-- El código de la aplicación -->
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useMemo, useEffect } = React;
 
+        // Componentes de Iconos (Versiones simples en SVG para no depender de librerías complejas en HTML)
         const IconHome = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
         const IconPlus = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>;
         const IconTags = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 5 6.3 6.3a2.4 2.4 0 0 1 0 3.4L17 19"/><path d="M9.586 5.586A2 2 0 0 0 8.172 5H3v5.172a2 2 0 0 0 .586 1.414l8.204 8.204a2 2 0 0 0 2.828 0l4.204-4.204a2 2 0 0 0 0-2.828L10.614 4.586z"/><circle cx="7" cy="9" r="1"/></svg>;
+        const IconSpreadsheet = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h2"/><path d="M8 17h2"/><path d="M14 13h2"/><path d="M14 17h2"/></svg>;
+        const IconBanknote = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>;
+        const IconLandmark = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="11"/><line x1="10" x2="10" y1="18" y2="11"/><line x1="14" x2="14" y1="18" y2="11"/><line x1="18" x2="18" y1="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>;
+        const IconCreditCard = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>;
         const IconEdit = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>;
         const IconTrash = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>;
+        const IconArchive = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="5" x="2" y="4" rx="2"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9"/><path d="M10 13h4"/></svg>;
+        const IconArchiveRestore = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="5" x="2" y="4" rx="2"/><path d="M12 13v7"/><path d="m9 16 3-3 3 3"/><path d="M4 9v9a2 2 0 0 0 2 2h2"/><path d="M20 9v9a2 2 0 0 1-2 2h-2"/></svg>;
 
         function App() {
+            // Estado para la pestaña activa
             const [activeTab, setActiveTab] = useState('dashboard');
-            const [categories, setCategories] = useState(() => JSON.parse(localStorage.getItem('finanzas_categories')) || []);
-            const [transactions, setTransactions] = useState(() => JSON.parse(localStorage.getItem('finanzas_transactions')) || []);
+            
+            // Fechas iniciales: Del 24 del mes anterior al 24 de este mes, o fechas por defecto
+            const initDate = new Date();
+            const initDay = initDate.getDate();
+            
+            let startMonthDate = new Date(initDate);
+            let endMonthDate = new Date(initDate);
 
+            if (initDay >= 24) {
+                startMonthDate.setDate(24);
+                endMonthDate.setMonth(endMonthDate.getMonth() + 1);
+                endMonthDate.setDate(24);
+            } else {
+                startMonthDate.setMonth(startMonthDate.getMonth() - 1);
+                startMonthDate.setDate(24);
+                endMonthDate.setDate(24);
+            }
+
+            const [dateRange, setDateRange] = useState({
+                start: startMonthDate.toISOString().split('T')[0],
+                end: endMonthDate.toISOString().split('T')[0]
+            });
+
+            // Datos guardados en la memoria del dispositivo
+            const [categories, setCategories] = useState(() => {
+                const savedCategories = localStorage.getItem('finanzas_categories');
+                return savedCategories ? JSON.parse(savedCategories) : [
+                { id: '1', name: 'Alimentación', budget: 150000, isActive: true },
+                { id: '2', name: 'Transporte', budget: 40000, isActive: true },
+                ];
+            });
+
+            const [transactions, setTransactions] = useState(() => {
+                const savedTransactions = localStorage.getItem('finanzas_transactions');
+                return savedTransactions ? JSON.parse(savedTransactions) : [];
+            });
+
+            // Guardar automáticamente cuando hay cambios
             useEffect(() => {
                 localStorage.setItem('finanzas_categories', JSON.stringify(categories));
+            }, [categories]);
+
+            useEffect(() => {
                 localStorage.setItem('finanzas_transactions', JSON.stringify(transactions));
-            }, [categories, transactions]);
+            }, [transactions]);
 
-            const [newTx, setNewTx] = useState({ date: new Date().toISOString().split('T')[0], amount: '', place: '', categoryId: '', method: 'Débito' });
+            // Estados para formularios de Gastos
             const [editingTxId, setEditingTxId] = useState(null);
+            const [newTx, setNewTx] = useState({ date: new Date().toISOString().split('T')[0], amount: '', place: '', categoryId: '', method: 'Débito' });
+            
+            // Estados para formularios de Categorías
+            const [newCat, setNewCat] = useState({ name: '', budget: '' });
+            const [editingCatId, setEditingCatId] = useState(null);
+            const [editCatData, setEditCatData] = useState({ name: '', budget: '' });
+            const [catErrorMsg, setCatErrorMsg] = useState("");
 
+            // Cálculos basados en el rango de fechas seleccionado
+            const filteredTransactions = useMemo(() => {
+                return transactions.filter(t => {
+                return t.date >= dateRange.start && t.date <= dateRange.end;
+                });
+            }, [transactions, dateRange]);
+
+            const categoryStats = useMemo(() => {
+                return categories.map(cat => {
+                const spent = filteredTransactions
+                    .filter(t => t.categoryId === cat.id)
+                    .reduce((sum, t) => sum + Number(t.amount), 0);
+                return {
+                    ...cat,
+                    spent,
+                    remaining: cat.budget - spent,
+                    percent: Math.min((spent / cat.budget) * 100, 100)
+                };
+                }).filter(cat => cat.isActive || cat.spent > 0); // Mostrar activas o si tienen gastos en este periodo
+            }, [categories, filteredTransactions]);
+
+            const totalBudget = categoryStats.reduce((sum, cat) => sum + Number(cat.budget), 0);
+            const totalSpent = filteredTransactions.reduce((sum, t) => sum + Number(t.amount), 0);
+            const totalRemaining = totalBudget - totalSpent;
+
+            // Manejadores de Gastos
             const handleAddTransaction = (e) => {
                 e.preventDefault();
                 if (!newTx.amount || !newTx.place || !newTx.categoryId) return;
                 
                 if (editingTxId) {
-                    setTransactions(transactions.map(t => t.id === editingTxId ? { ...newTx, id: editingTxId } : t));
+                    // Actualizar gasto existente
+                    setTransactions(transactions.map(t => 
+                        t.id === editingTxId ? { ...newTx, id: editingTxId } : t
+                    ));
+                    setEditingTxId(null);
                 } else {
+                    // Crear nuevo gasto
                     setTransactions([{ ...newTx, id: Date.now().toString() }, ...transactions]);
                 }
                 
+                setNewTx({ ...newTx, amount: '', place: '' }); 
+                setActiveTab('dashboard'); 
+            };
+
+            const startEditTx = (tx) => {
+                setEditingTxId(tx.id);
+                setNewTx({ ...tx });
+                setActiveTab('add');
+            };
+
+            const cancelEditTx = () => {
                 setEditingTxId(null);
                 setNewTx({ date: new Date().toISOString().split('T')[0], amount: '', place: '', categoryId: '', method: 'Débito' });
                 setActiveTab('dashboard');
             };
 
+            const deleteTx = (id) => {
+                // Elimina el gasto directamente
+                setTransactions(transactions.filter(t => t.id !== id));
+            };
+
+            // Manejadores de Categorías
+            const handleAddCategory = (e) => {
+                e.preventDefault();
+                if (!newCat.name || !newCat.budget) return;
+                
+                setCategories([...categories, { ...newCat, id: Date.now().toString(), budget: Number(newCat.budget), isActive: true }]);
+                setNewCat({ name: '', budget: '' });
+            };
+
+            const handleUpdateCategory = (e) => {
+                e.preventDefault();
+                setCategories(categories.map(cat => 
+                cat.id === editingCatId ? { ...cat, name: editCatData.name, budget: Number(editCatData.budget) } : cat
+                ));
+                setEditingCatId(null);
+            };
+
+            const toggleCategoryStatus = (id) => {
+                setCategories(categories.map(cat => 
+                cat.id === id ? { ...cat, isActive: !cat.isActive } : cat
+                ));
+            };
+
+            const deleteCategory = (id) => {
+                const hasTransactions = transactions.some(t => t.categoryId === id);
+                if (hasTransactions) {
+                    setCatErrorMsg("No puedes eliminar esta categoría porque tiene gastos asociados. Mejor archívala usando el ícono amarillo para ocultarla en nuevos gastos.");
+                    setTimeout(() => setCatErrorMsg(""), 6000);
+                    return;
+                }
+                setCategories(categories.filter(cat => cat.id !== id));
+            };
+
+            const exportToCSV = () => {
+                const headers = ['Fecha', 'Monto', 'Lugar', 'Categoria', 'Metodo de Pago'];
+                const rows = filteredTransactions.map(t => {
+                const catName = categories.find(c => c.id === t.categoryId)?.name || 'Desconocida';
+                return `${t.date},${t.amount},"${t.place}",${catName},${t.method}`;
+                });
+                
+                const csvContent = [headers.join(','), ...rows].join('\n');
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                
+                link.setAttribute('href', url);
+                link.setAttribute('download', `Finanzas_${dateRange.start}_al_${dateRange.end}.csv`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
+
+            // Vistas
             const renderDashboard = () => (
-                <div className="space-y-6 pb-20 p-4">
-                    <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-                        <h2 className="font-bold text-lg text-slate-800 mb-3">Historial de Gastos</h2>
-                        {transactions.map(tx => {
+                <div className="space-y-6 pb-20">
+                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                    <h2 className="font-bold text-lg text-slate-800 mb-3">Periodo de Resumen</h2>
+                    <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                        <label className="text-xs text-slate-500 block mb-1">Desde</label>
+                        <input 
+                        type="date" 
+                        value={dateRange.start}
+                        onChange={(e) => setDateRange({...dateRange, start: e.target.value})}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-emerald-500"
+                        />
+                    </div>
+                    <div className="flex-1">
+                        <label className="text-xs text-slate-500 block mb-1">Hasta</label>
+                        <input 
+                        type="date" 
+                        value={dateRange.end}
+                        onChange={(e) => setDateRange({...dateRange, end: e.target.value})}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-emerald-500"
+                        />
+                    </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-emerald-500 text-white p-4 rounded-xl shadow-md">
+                    <p className="text-emerald-100 text-sm font-medium">Disponible</p>
+                    <p className="text-2xl font-bold mt-1">₡{totalRemaining.toLocaleString()}</p>
+                    <p className="text-xs text-emerald-100 mt-2">De ₡{totalBudget.toLocaleString()}</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl shadow-md border border-slate-100 flex flex-col justify-between">
+                    <div>
+                        <p className="text-slate-500 text-sm font-medium">Gastado</p>
+                        <p className="text-2xl font-bold mt-1 text-slate-800">₡{totalSpent.toLocaleString()}</p>
+                    </div>
+                    <button 
+                        onClick={exportToCSV}
+                        className="mt-2 flex items-center justify-center w-full gap-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 rounded-md transition-colors"
+                    >
+                        <IconSpreadsheet /> Exportar Excel
+                    </button>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+                    <div className="p-4 border-b border-slate-100 bg-slate-50">
+                    <h3 className="font-semibold text-slate-700">Presupuesto por Categoría</h3>
+                    </div>
+                    <div className="p-4 space-y-5">
+                    {categoryStats.map(cat => (
+                        <div key={cat.id} className={!cat.isActive ? "opacity-60" : ""}>
+                        <div className="flex justify-between items-end mb-1">
+                            <span className="font-medium text-slate-700 flex items-center gap-1">
+                            {cat.name} 
+                            {!cat.isActive && <span className="text-[10px] bg-slate-200 text-slate-600 px-1 py-0.5 rounded uppercase font-bold">Archivada</span>}
+                            </span>
+                            <div className="text-right">
+                            <span className={`font-bold ${cat.remaining < 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                                ₡{cat.remaining.toLocaleString()}
+                            </span>
+                            <span className="text-xs text-slate-400 ml-1">disp.</span>
+                            </div>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                            <div 
+                            className={`h-2.5 rounded-full ${cat.percent > 90 ? 'bg-red-500' : cat.percent > 75 ? 'bg-yellow-400' : 'bg-emerald-500'}`}
+                            style={{ width: `${cat.percent}%` }}
+                            ></div>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">
+                            Gastado: ₡{cat.spent.toLocaleString()} / ₡{cat.budget.toLocaleString()}
+                        </p>
+                        </div>
+                    ))}
+                    {categories.length === 0 && (
+                        <p className="text-sm text-slate-500 text-center py-4">No hay categorías configuradas.</p>
+                    )}
+                    </div>
+                </div>
+
+                {/* --- NUEVA SECCIÓN: Historial de Gastos --- */}
+                <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden mt-6">
+                    <div className="p-4 border-b border-slate-100 bg-slate-50">
+                        <h3 className="font-semibold text-slate-700">Historial de Gastos</h3>
+                    </div>
+                    <div className="p-4 space-y-3">
+                    {filteredTransactions.length === 0 ? (
+                        <p className="text-sm text-slate-500 text-center py-4">No hay gastos en este periodo.</p>
+                    ) : (
+                        // Ordenar por fecha descendente
+                        [...filteredTransactions].sort((a, b) => new Date(b.date) - new Date(a.date)).map(tx => {
                             const cat = categories.find(c => c.id === tx.categoryId);
                             return (
-                                <div key={tx.id} className="flex justify-between items-center p-3 mb-2 bg-slate-50 rounded-lg border border-slate-100">
-                                    <div>
+                                <div key={tx.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                    <div className="flex-1">
                                         <p className="font-medium text-slate-700">{tx.place}</p>
-                                        <p className="text-xs text-slate-500">{tx.date} • {cat?.name}</p>
+                                        <p className="text-xs text-slate-500 mt-0.5">{tx.date} • {cat ? cat.name : 'Desconocida'} • {tx.method}</p>
                                     </div>
-                                    <div className="flex flex-col items-end">
+                                    <div className="flex flex-col items-end gap-2">
                                         <span className="font-bold text-slate-800">₡{Number(tx.amount).toLocaleString()}</span>
-                                        <button onClick={() => { setEditingTxId(tx.id); setNewTx(tx); setActiveTab('add'); }} className="text-blue-600 mt-1"><IconEdit /></button>
+                                        <div className="flex gap-1.5">
+                                            <button 
+                                                onClick={() => startEditTx(tx)}
+                                                className="p-1.5 text-blue-600 bg-blue-50 rounded hover:bg-blue-100 transition-colors"
+                                                title="Editar gasto"
+                                            >
+                                                <IconEdit />
+                                            </button>
+                                            <button 
+                                                onClick={() => deleteTx(tx.id)}
+                                                className="p-1.5 text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors"
+                                                title="Eliminar gasto"
+                                            >
+                                                <IconTrash />
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-                            )
-                        })}
+                            );
+                        })
+                    )}
                     </div>
+                </div>
+                {/* --- FIN Historial de Gastos --- */}
+
                 </div>
             );
 
             const renderAddTransaction = () => (
-                <div className="p-4 space-y-4">
-                    <form onSubmit={handleAddTransaction} className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 space-y-4">
-                        <input type="date" className="w-full p-3 border rounded-lg bg-slate-50" value={newTx.date} onChange={e => setNewTx({...newTx, date: e.target.value})} />
-                        <input type="number" className="w-full p-3 border rounded-lg bg-slate-50" placeholder="Monto" value={newTx.amount} onChange={e => setNewTx({...newTx, amount: e.target.value})} />
-                        <input type="text" className="w-full p-3 border rounded-lg bg-slate-50" placeholder="Lugar" value={newTx.place} onChange={e => setNewTx({...newTx, place: e.target.value})} />
-                        <select className="w-full p-3 border rounded-lg bg-slate-50" value={newTx.categoryId} onChange={e => setNewTx({...newTx, categoryId: e.target.value})}>
-                            <option value="">Seleccione Categoría</option>
-                            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                <div className="space-y-6 pb-20">
+                <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100">
+                    <h2 className="font-bold text-xl text-slate-800 mb-4">
+                        {editingTxId ? 'Editar Gasto' : 'Nuevo Gasto'}
+                    </h2>
+                    <form onSubmit={handleAddTransaction} className="space-y-4">
+                    
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Fecha</label>
+                        <input 
+                        type="date" 
+                        required
+                        value={newTx.date}
+                        onChange={(e) => setNewTx({...newTx, date: e.target.value})}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Monto (₡)</label>
+                        <input 
+                        type="number" 
+                        required
+                        min="0"
+                        placeholder="Ej. 15000"
+                        value={newTx.amount}
+                        onChange={(e) => setNewTx({...newTx, amount: e.target.value})}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Lugar / Descripción</label>
+                        <input 
+                        type="text" 
+                        required
+                        placeholder="Ej. Supermercado, Cine..."
+                        value={newTx.place}
+                        onChange={(e) => setNewTx({...newTx, place: e.target.value})}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Categoría</label>
+                        <select 
+                        required
+                        value={newTx.categoryId}
+                        onChange={(e) => setNewTx({...newTx, categoryId: e.target.value})}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        >
+                        <option value="" disabled>Selecciona una categoría</option>
+                        {categories.filter(cat => cat.isActive).map(cat => (
+                            <option key={cat.id} value={cat.id}>{cat.name}</option>
+                        ))}
                         </select>
-                        <button type="submit" className="w-full bg-emerald-600 text-white p-4 rounded-xl font-bold">Guardar Gasto</button>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">Método de Pago</label>
+                        <div className="grid grid-cols-3 gap-2">
+                        {['Efectivo', 'Débito', 'Crédito'].map(method => (
+                            <button
+                            key={method}
+                            type="button"
+                            onClick={() => setNewTx({...newTx, method})}
+                            className={`py-2 px-1 rounded-lg border text-sm flex flex-col items-center justify-center gap-1 transition-colors
+                                ${newTx.method === method 
+                                ? 'bg-emerald-50 border-emerald-500 text-emerald-700 font-semibold shadow-sm' 
+                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                            >
+                            {method === 'Efectivo' && <IconBanknote />}
+                            {method === 'Débito' && <IconLandmark />}
+                            {method === 'Crédito' && <IconCreditCard />}
+                            {method}
+                            </button>
+                        ))}
+                        </div>
+                    </div>
+
+                    {editingTxId ? (
+                        <div className="flex gap-2 mt-4">
+                            <button 
+                                type="button"
+                                onClick={cancelEditTx}
+                                className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-3.5 rounded-xl transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                            <button 
+                                type="submit"
+                                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-md transition-colors"
+                            >
+                                Actualizar
+                            </button>
+                        </div>
+                    ) : (
+                        <button 
+                            type="submit"
+                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-md transition-colors mt-4"
+                        >
+                            Guardar Gasto
+                        </button>
+                    )}
                     </form>
+                </div>
                 </div>
             );
 
             const renderCategories = () => (
-                <div className="p-4 space-y-4">
-                    {categories.map(c => (
-                        <div key={c.id} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-                            <p className="font-bold text-slate-800">{c.name}</p>
+                <div className="space-y-6 pb-20">
+                <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100">
+                    <h2 className="font-bold text-xl text-slate-800 mb-4">
+                    {editingCatId ? 'Editar Categoría' : 'Nueva Categoría'}
+                    </h2>
+                    
+                    {catErrorMsg && (
+                        <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded-lg border border-red-100">
+                            {catErrorMsg}
+                        </div>
+                    )}
+
+                    {editingCatId ? (
+                    <form onSubmit={handleUpdateCategory} className="space-y-4">
+                        <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Nombre</label>
+                        <input 
+                            type="text" 
+                            required
+                            value={editCatData.name}
+                            onChange={(e) => setEditCatData({...editCatData, name: e.target.value})}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-emerald-500"
+                        />
+                        </div>
+                        <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Presupuesto Mensual (₡)</label>
+                        <input 
+                            type="number" 
+                            required
+                            min="0"
+                            value={editCatData.budget}
+                            onChange={(e) => setEditCatData({...editCatData, budget: e.target.value})}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-emerald-500"
+                        />
+                        </div>
+                        <div className="flex gap-2">
+                        <button 
+                            type="button"
+                            onClick={() => setEditingCatId(null)}
+                            className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-3 rounded-xl transition-colors"
+                        >
+                            Cancelar
+                        </button>
+                        <button 
+                            type="submit"
+                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition-colors"
+                        >
+                            Guardar
+                        </button>
+                        </div>
+                    </form>
+                    ) : (
+                    <form onSubmit={handleAddCategory} className="space-y-4">
+                        <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Nombre</label>
+                        <input 
+                            type="text" 
+                            required
+                            placeholder="Ej. Salud, Mascotas..."
+                            value={newCat.name}
+                            onChange={(e) => setNewCat({...newCat, name: e.target.value})}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                        </div>
+                        <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Presupuesto Mensual (₡)</label>
+                        <input 
+                            type="number" 
+                            required
+                            min="0"
+                            placeholder="Ej. 20000"
+                            value={newCat.budget}
+                            onChange={(e) => setNewCat({...newCat, budget: e.target.value})}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                        </div>
+                        <button 
+                        type="submit"
+                        className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 rounded-xl shadow-md transition-colors"
+                        >
+                        Añadir Categoría
+                        </button>
+                    </form>
+                    )}
+                </div>
+
+                <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100">
+                    <h3 className="font-bold text-slate-800 mb-3">Tus Categorías</h3>
+                    <div className="space-y-3">
+                    {categories.map(cat => (
+                        <div key={cat.id} className={`flex flex-col p-3 bg-slate-50 rounded-lg border border-slate-100 ${!cat.isActive ? 'opacity-60' : ''}`}>
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="font-medium text-slate-700 flex items-center gap-2">
+                            {cat.name}
+                            {!cat.isActive && <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded uppercase font-bold">Archivada</span>}
+                            </span>
+                            <span className="text-emerald-600 font-semibold">₡{Number(cat.budget).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-1 border-t border-slate-200 pt-2">
+                            <button 
+                            onClick={() => {
+                                setEditingCatId(cat.id);
+                                setEditCatData({ name: cat.name, budget: cat.budget });
+                            }}
+                            className="p-1.5 text-blue-600 bg-blue-50 rounded hover:bg-blue-100"
+                            title="Editar"
+                            >
+                            <IconEdit />
+                            </button>
+                            <button 
+                            onClick={() => toggleCategoryStatus(cat.id)}
+                            className={`p-1.5 rounded ${cat.isActive ? 'text-amber-600 bg-amber-50 hover:bg-amber-100' : 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100'}`}
+                            title={cat.isActive ? "Archivar (Ocultar)" : "Desarchivar"}
+                            >
+                            {cat.isActive ? <IconArchive /> : <IconArchiveRestore />}
+                            </button>
+                            <button 
+                            onClick={() => deleteCategory(cat.id)}
+                            className="p-1.5 text-red-600 bg-red-50 rounded hover:bg-red-100"
+                            title="Eliminar permanentemente"
+                            >
+                            <IconTrash />
+                            </button>
+                        </div>
                         </div>
                     ))}
-                    <button onClick={() => { const name = prompt("Nombre categoría:"); if(name) setCategories([...categories, {id: Date.now().toString(), name}]); }} className="w-full bg-slate-800 text-white p-4 rounded-xl font-bold">+ Nueva Categoría</button>
+                    {categories.length === 0 && (
+                        <p className="text-sm text-slate-500">No hay categorías configuradas.</p>
+                    )}
+                    </div>
+                </div>
                 </div>
             );
 
             return (
-                <div className="min-h-screen bg-slate-50">
-                    <header className="bg-emerald-600 text-white p-6 text-center font-bold text-xl shadow-md">Mis Finanzas</header>
-                    <main>{activeTab === 'dashboard' ? renderDashboard() : activeTab === 'add' ? renderAddTransaction() : renderCategories()}</main>
-                    <nav className="fixed bottom-0 w-full bg-white border-t flex justify-around p-4 shadow-lg pb-safe">
-                        <button onClick={() => setActiveTab('dashboard')} className={activeTab === 'dashboard' ? 'text-emerald-600' : 'text-slate-400'}><IconHome /></button>
-                        <button onClick={() => { setEditingTxId(null); setActiveTab('add'); }} className={activeTab === 'add' ? 'text-emerald-600' : 'text-slate-400'}><IconPlus /></button>
-                        <button onClick={() => setActiveTab('categories')} className={activeTab === 'categories' ? 'text-emerald-600' : 'text-slate-400'}><IconTags /></button>
-                    </nav>
+                <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+                {/* Encabezado */}
+                <header className="bg-emerald-600 text-white pt-6 pb-4 px-4 shadow-md sticky top-0 z-10">
+                    <h1 className="text-2xl font-bold text-center">Mis Finanzas</h1>
+                </header>
+
+                {/* Contenido Principal */}
+                <main className="p-4 max-w-md mx-auto">
+                    {activeTab === 'dashboard' && renderDashboard()}
+                    {activeTab === 'add' && renderAddTransaction()}
+                    {activeTab === 'categories' && renderCategories()}
+                </main>
+
+                {/* Navegación Inferior (Estilo App Móvil) */}
+                <nav className="fixed bottom-0 w-full bg-white border-t border-slate-200 pb-safe z-20">
+                    <div className="max-w-md mx-auto flex justify-around p-2">
+                    <button 
+                        onClick={() => setActiveTab('dashboard')}
+                        className={`flex flex-col items-center p-2 min-w-[70px] ${activeTab === 'dashboard' ? 'text-emerald-600' : 'text-slate-400'}`}
+                    >
+                        <div className="mb-1"><IconHome /></div>
+                        <span className="text-xs font-medium">Resumen</span>
+                    </button>
+                    
+                    <button 
+                        onClick={() => {
+                            setEditingTxId(null);
+                            setNewTx({ date: new Date().toISOString().split('T')[0], amount: '', place: '', categoryId: '', method: 'Débito' });
+                            setActiveTab('add');
+                        }}
+                        className={`flex flex-col items-center p-2 min-w-[70px] ${activeTab === 'add' ? 'text-emerald-600' : 'text-slate-400'}`}
+                    >
+                        <div className={`rounded-full p-2 mb-1 ${activeTab === 'add' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100'}`}>
+                        <IconPlus />
+                        </div>
+                        <span className="text-xs font-medium">Gasto</span>
+                    </button>
+                    
+                    <button 
+                        onClick={() => setActiveTab('categories')}
+                        className={`flex flex-col items-center p-2 min-w-[70px] ${activeTab === 'categories' ? 'text-emerald-600' : 'text-slate-400'}`}
+                    >
+                        <div className="mb-1"><IconTags /></div>
+                        <span className="text-xs font-medium">Categorías</span>
+                    </button>
+                    </div>
+                </nav>
                 </div>
             );
         }
+
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>
