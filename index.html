@@ -78,25 +78,50 @@
         let auth = null;
         let db = null;
 
-        try {
-            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-                const firebaseConfig = JSON.parse(__firebase_config);
-                app = initializeApp(firebaseConfig);
-                auth = getAuth(app);
-                db = getFirestore(app);
+        function setupFirebaseInstance() {
+            if (db && auth) return true;
+            try {
+                let firebaseConfig = null;
+                if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                    firebaseConfig = JSON.parse(__firebase_config);
+                } else {
+                    const savedConfig = localStorage.getItem('finanzas_custom_firebase_config');
+                    if (savedConfig) {
+                        firebaseConfig = JSON.parse(savedConfig);
+                    }
+                }
+
+                if (firebaseConfig) {
+                    app = initializeApp(firebaseConfig);
+                    auth = getAuth(app);
+                    db = getFirestore(app);
+                    return true;
+                }
+            } catch (e) {
+                console.warn("Firebase no ha sido configurado aun:", e);
             }
-        } catch (e) {
-            console.warn("Firebase operará en modo de reserva si no hay credenciales activas:", e);
+            return false;
         }
+
+        setupFirebaseInstance();
 
         // Puente global seguro para interacción de Firebase con React
         window.FirebaseBridge = {
             appId,
-            auth,
-            db,
-            isAvailable: () => !!db && !!auth,
+            isAvailable: () => setupFirebaseInstance(),
+            saveCustomConfig: (configObj) => {
+                try {
+                    localStorage.setItem('finanzas_custom_firebase_config', JSON.stringify(configObj));
+                    app = null;
+                    auth = null;
+                    db = null;
+                    return setupFirebaseInstance();
+                } catch(e) {
+                    return false;
+                }
+            },
             initAuth: async () => {
-                if (!auth) return null;
+                if (!setupFirebaseInstance()) return null;
                 try {
                     if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                         const userCred = await signInWithCustomToken(auth, __initial_auth_token);
@@ -111,11 +136,11 @@
                 }
             },
             getPublicCollection: (collectionName) => {
-                if (!db) return null;
+                if (!setupFirebaseInstance()) return null;
                 return collection(db, 'artifacts', appId, 'public', 'data', collectionName);
             },
             getPublicDoc: (collectionName, docId) => {
-                if (!db) return null;
+                if (!setupFirebaseInstance()) return null;
                 return doc(db, 'artifacts', appId, 'public', 'data', collectionName, docId);
             },
             setDoc,
@@ -1046,7 +1071,7 @@
                     {/* Modal para Unirse / Compartir Grupo */}
                     {showGroupModal && (
                         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-                            <div className="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl space-y-4">
+                            <div className="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
                                 <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                                     <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
                                         <IconUsers /> Compartir Presupuesto
@@ -1076,7 +1101,7 @@
                                     </p>
                                 </div>
 
-                                <form onSubmit={handleJoinGroup} className="space-y-3 pt-2">
+                                <form onSubmit={handleJoinGroup} className="space-y-3 pt-1">
                                     <label className="block text-xs font-semibold text-slate-700">Unirse al Código de otra persona:</label>
                                     <input 
                                         type="text" 
@@ -1093,7 +1118,7 @@
                                     </button>
                                 </form>
 
-                                <div className="pt-2 border-t border-slate-100">
+                                <div className="pt-2 border-t border-slate-100 space-y-2">
                                     <button 
                                         onClick={() => {
                                             uploadLocalDataToCloud();
@@ -1103,6 +1128,47 @@
                                     >
                                         <IconCloudUpload /> Subir mis datos actuales a este grupo
                                     </button>
+
+                                    {/* Configuración rápida de Firebase si se usa desde Vercel / hosting propio */}
+                                    <details className="text-xs bg-slate-50 p-3 rounded-xl border border-slate-200 text-slate-600">
+                                        <summary className="font-semibold cursor-pointer text-slate-700 hover:text-slate-900 select-none flex items-center justify-between">
+                                            <span>⚙️ Configurar Nube en Vercel</span>
+                                            <span className="text-[10px] text-slate-400">Paso a paso</span>
+                                        </summary>
+                                        <div className="mt-3 space-y-2 text-[11px] leading-relaxed">
+                                            <p className="text-slate-600">
+                                                Para sincronizar dos teléfonos en tu propio Vercel/GitHub, pega la configuración gratuita de <strong>Google Firebase</strong> (JSON):
+                                            </p>
+                                            <textarea 
+                                                id="firebase-json-input"
+                                                rows="4"
+                                                placeholder='{"apiKey": "AIzaSy...", "authDomain": "...", "projectId": "..."}'
+                                                className="w-full font-mono text-[10px] p-2 bg-white border border-slate-300 rounded-lg focus:ring-1 focus:ring-emerald-500"
+                                            ></textarea>
+                                            <button 
+                                                type="button"
+                                                onClick={() => {
+                                                    try {
+                                                        const val = document.getElementById('firebase-json-input').value.trim();
+                                                        if (!val) return;
+                                                        const parsed = JSON.parse(val);
+                                                        const ok = window.FirebaseBridge.saveCustomConfig(parsed);
+                                                        if (ok) {
+                                                            triggerToast("¡Conexión a la Nube activada!");
+                                                            setShowGroupModal(false);
+                                                        } else {
+                                                            triggerToast("Error al conectar con las credenciales.");
+                                                        }
+                                                    } catch(e) {
+                                                        triggerToast("JSON de Firebase no válido.");
+                                                    }
+                                                }}
+                                                className="w-full bg-slate-700 hover:bg-slate-800 text-white py-1.5 rounded-lg font-medium transition-colors"
+                                            >
+                                                Guardar Credenciales de Nube
+                                            </button>
+                                        </div>
+                                    </details>
                                 </div>
                             </div>
                         </div>
