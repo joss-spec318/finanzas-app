@@ -12,16 +12,15 @@
     <!-- Babel (Transpilador estable) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
     
-    <!-- Tailwind CSS (Estilos interactivos en tiempo real) -->
+    <!-- Tailwind CSS (Estilos interactivos) -->
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <!-- Configuración para PWA (Instalación en celular) -->
+    <!-- Configuración para PWA -->
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#059669">
 
-    <!-- Configuración Manifest de forma asíncrona para PWA -->
     <link rel="manifest" id="manifest-link">
     <script>
         window.addEventListener('DOMContentLoaded', () => {
@@ -70,8 +69,8 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, deleteDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, deleteDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'mis-finanzas-compartidas';
         let app = null;
@@ -83,7 +82,7 @@
             try {
                 let firebaseConfig = null;
                 if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-                    firebaseConfig = JSON.parse(__firebase_config);
+                    firebaseConfig = typeof __firebase_config === 'string' ? JSON.parse(__firebase_config) : __firebase_config;
                 } else {
                     const savedConfig = localStorage.getItem('finanzas_custom_firebase_config');
                     if (savedConfig) {
@@ -91,34 +90,49 @@
                     }
                 }
 
-                if (firebaseConfig) {
+                if (firebaseConfig && firebaseConfig.apiKey) {
                     app = initializeApp(firebaseConfig);
                     auth = getAuth(app);
                     db = getFirestore(app);
                     return true;
                 }
             } catch (e) {
-                console.warn("Firebase no ha sido configurado aun:", e);
+                console.warn("Firebase no configurado aún o credenciales inválidas:", e);
             }
             return false;
         }
 
         setupFirebaseInstance();
 
-        // Puente global seguro para interacción de Firebase con React
+        // Limpiador flexible para cualquier texto pegado desde Firebase
+        function parseFlexibleFirebaseConfig(text) {
+            if (!text) return null;
+            try {
+                return JSON.parse(text);
+            } catch(e) {
+                try {
+                    const match = text.match(/\{[\s\S]*\}/);
+                    if (match) {
+                        const fn = new Function('return ' + match[0]);
+                        return fn();
+                    }
+                } catch(err) {
+                    return null;
+                }
+            }
+            return null;
+        }
+
         window.FirebaseBridge = {
             appId,
             isAvailable: () => setupFirebaseInstance(),
-            saveCustomConfig: (configObj) => {
-                try {
+            saveCustomConfig: (rawText) => {
+                const configObj = parseFlexibleFirebaseConfig(rawText);
+                if (configObj && configObj.apiKey) {
                     localStorage.setItem('finanzas_custom_firebase_config', JSON.stringify(configObj));
-                    app = null;
-                    auth = null;
-                    db = null;
-                    return setupFirebaseInstance();
-                } catch(e) {
-                    return false;
+                    return true;
                 }
+                return false;
             },
             initAuth: async () => {
                 if (!setupFirebaseInstance()) return null;
@@ -131,7 +145,7 @@
                         return userCred.user;
                     }
                 } catch (e) {
-                    console.error("Error al autenticar usuario:", e);
+                    console.error("Error de autenticación:", e);
                     return null;
                 }
             },
@@ -154,9 +168,8 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useMemo, useEffect, useRef } = React;
+        const { useState, useMemo, useEffect } = React;
 
-        // Iconos SVG Vectoriales autónomos y livianos
         const IconHome = () => <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
         const IconPlus = () => <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>;
         const IconTags = () => <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 5 6.3 6.3a2.4 2.4 0 0 1 0 3.4L17 19"/><path d="M9.586 5.586A2 2 0 0 0 8.172 5H3v5.172a2 2 0 0 0 .586 1.414l8.204 8.204a2 2 0 0 0 2.828 0l4.204-4.204a2 2 0 0 0 0-2.828L10.614 4.586z"/><circle cx="7" cy="9" r="1"/></svg>;
@@ -181,7 +194,6 @@
             const [toastMessage, setToastMessage] = useState('');
             const [copied, setCopied] = useState(false);
 
-            // Generador o recuperación de Código de Grupo (ej. CASA-748)
             const [groupCode, setGroupCode] = useState(() => {
                 const saved = localStorage.getItem('finanzas_group_code');
                 if (saved) return saved.toUpperCase();
@@ -192,7 +204,6 @@
 
             const [inputGroupCode, setInputGroupCode] = useState('');
 
-            // Fechas iniciales por defecto (rango del 24 al 24)
             const initDate = new Date();
             const initDay = initDate.getDate();
             let startMonthDate = new Date(initDate);
@@ -213,7 +224,6 @@
                 end: endMonthDate.toISOString().split('T')[0]
             });
 
-            // Datos principales (Categorías y Transacciones)
             const [categories, setCategories] = useState(() => {
                 try {
                     const saved = localStorage.getItem('finanzas_categories');
@@ -238,7 +248,6 @@
                 }
             });
 
-            // Respaldo secundario en localStorage
             useEffect(() => {
                 localStorage.setItem('finanzas_categories', JSON.stringify(categories));
             }, [categories]);
@@ -273,7 +282,6 @@
                         return;
                     }
 
-                    // Escuchar cambios en Categorías
                     unsubscribeCategories = window.FirebaseBridge.onSnapshot(
                         categoriesColRef,
                         (snapshot) => {
@@ -296,7 +304,6 @@
                         }
                     );
 
-                    // Escuchar cambios en Transacciones
                     unsubscribeTransactions = window.FirebaseBridge.onSnapshot(
                         transactionsColRef,
                         (snapshot) => {
@@ -326,13 +333,11 @@
                 };
             }, [groupCode]);
 
-            // Función para mostrar avisos temporales sin usar alert()
             const triggerToast = (msg) => {
                 setToastMessage(msg);
                 setTimeout(() => setToastMessage(''), 3500);
             };
 
-            // Copiar código de grupo al portapapeles
             const copyGroupCode = () => {
                 const textArea = document.createElement("textarea");
                 textArea.value = groupCode;
@@ -345,7 +350,6 @@
                 triggerToast(`Código "${groupCode}" copiado al portapapeles`);
             };
 
-            // Cambiar o Unirse a otro Código de Grupo
             const handleJoinGroup = (e) => {
                 e.preventDefault();
                 if (!inputGroupCode.trim()) return;
@@ -357,10 +361,9 @@
                 triggerToast(`Te uniste al grupo "${cleanCode}"`);
             };
 
-            // Sincronizar/Subir datos de la memoria local a la nube para el grupo actual
             const uploadLocalDataToCloud = async () => {
                 if (!window.FirebaseBridge || !window.FirebaseBridge.isAvailable()) {
-                    triggerToast("Modo sin conexión. Los datos están seguros en tu teléfono.");
+                    triggerToast("Primero configura la Nube en Vercel con el formulario de abajo.");
                     return;
                 }
 
@@ -370,7 +373,6 @@
 
                 setIsSyncing(true);
                 try {
-                    // Subir categorías
                     for (const cat of categories) {
                         const docRef = window.FirebaseBridge.getPublicDoc('categories', cat.id);
                         await window.FirebaseBridge.setDoc(docRef, {
@@ -380,7 +382,6 @@
                         }, { merge: true });
                     }
 
-                    // Subir transacciones
                     for (const tx of transactions) {
                         const docRef = window.FirebaseBridge.getPublicDoc('transactions', tx.id);
                         await window.FirebaseBridge.setDoc(docRef, {
@@ -393,7 +394,7 @@
                     triggerToast("¡Datos subidos a la nube exitosamente!");
                 } catch (e) {
                     console.error("Error al respaldar en la nube:", e);
-                    triggerToast("Ocurrió un error al subir los datos.");
+                    triggerToast("Revisa las reglas de Firestore en la consola de Firebase.");
                 } finally {
                     setIsSyncing(false);
                 }
@@ -416,7 +417,6 @@
                 return transactions.filter(t => t.date >= dateRange.start && t.date <= dateRange.end);
             }, [transactions, dateRange]);
 
-            // Agrupar gastos por fecha descendente
             const groupedTransactions = useMemo(() => {
                 const groups = {};
                 filteredTransactions.forEach(tx => {
@@ -452,7 +452,6 @@
             const totalSpent = filteredTransactions.reduce((sum, t) => sum + Number(t.amount), 0);
             const totalRemaining = totalBudget - totalSpent;
 
-            // Guardar / Editar Gasto (Sincronizado con Firestore)
             const handleAddTransaction = async (e) => {
                 e.preventDefault();
                 if (!newTx.amount || !newTx.place || !newTx.categoryId) return;
@@ -466,7 +465,6 @@
                     updatedAt: new Date().toISOString()
                 };
 
-                // Actualizar estado local
                 if (editingTxId) {
                     setTransactions(transactions.map(t => t.id === editingTxId ? transactionData : t));
                     setEditingTxId(null);
@@ -474,13 +472,12 @@
                     setTransactions([transactionData, ...transactions]);
                 }
 
-                // Sincronizar con la nube si está disponible
                 if (window.FirebaseBridge && window.FirebaseBridge.isAvailable()) {
                     try {
                         const docRef = window.FirebaseBridge.getPublicDoc('transactions', txId);
                         await window.FirebaseBridge.setDoc(docRef, transactionData, { merge: true });
                     } catch (err) {
-                        console.error("Error guardando transacción en Firestore:", err);
+                        console.error("Error guardando transacción:", err);
                     }
                 }
 
@@ -508,13 +505,12 @@
                         const docRef = window.FirebaseBridge.getPublicDoc('transactions', id);
                         await window.FirebaseBridge.deleteDoc(docRef);
                     } catch (err) {
-                        console.error("Error eliminando transacción de Firestore:", err);
+                        console.error("Error eliminando transacción:", err);
                     }
                 }
                 triggerToast("Gasto eliminado");
             };
 
-            // Categorías
             const handleAddCategory = async (e) => {
                 e.preventDefault();
                 if (!newCat.name || !newCat.budget) return;
@@ -537,7 +533,7 @@
                         const docRef = window.FirebaseBridge.getPublicDoc('categories', catId);
                         await window.FirebaseBridge.setDoc(docRef, categoryData, { merge: true });
                     } catch (err) {
-                        console.error("Error guardando categoría en Firestore:", err);
+                        console.error("Error guardando categoría:", err);
                     }
                 }
             };
@@ -561,7 +557,7 @@
                         const docRef = window.FirebaseBridge.getPublicDoc('categories', editingCatId);
                         await window.FirebaseBridge.setDoc(docRef, updatedCat, { merge: true });
                     } catch (err) {
-                        console.error("Error actualizando categoría en Firestore:", err);
+                        console.error("Error actualizando categoría:", err);
                     }
                 }
             };
@@ -626,7 +622,6 @@
 
             const renderDashboard = () => (
                 <div className="space-y-6 pb-20 animate-fade-in">
-                    {/* Barra informativa de sincronización de Grupo */}
                     <div className="bg-slate-800 text-white p-3.5 rounded-xl shadow-sm flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2.5 overflow-hidden">
                             <span className="p-1.5 bg-emerald-500/20 text-emerald-400 rounded-lg shrink-0">
@@ -742,7 +737,6 @@
                         </div>
                     </div>
 
-                    {/* --- Historial Agrupado por Fecha --- */}
                     <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden mt-6">
                         <div className="p-4 border-b border-slate-100 bg-slate-50">
                             <h3 className="font-semibold text-slate-700">Historial de Gastos</h3>
@@ -1060,7 +1054,6 @@
                         </button>
                     </header>
 
-                    {/* Toast flotante para avisos sin alert() */}
                     {toastMessage && (
                         <div className="fixed top-16 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-xs px-4 py-2.5 rounded-full shadow-lg z-50 animate-fade-in flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
@@ -1068,7 +1061,6 @@
                         </div>
                     )}
 
-                    {/* Modal para Unirse / Compartir Grupo */}
                     {showGroupModal && (
                         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
                             <div className="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
@@ -1097,7 +1089,7 @@
                                         </button>
                                     </div>
                                     <p className="text-[11px] text-emerald-700">
-                                        Comparte este código con la otra persona para que ambos vean y editen las mismas finanzas en tiempo real.
+                                        Comparte este código con la otra persona para sincronizar las finanzas en tiempo real.
                                     </p>
                                 </div>
 
@@ -1122,50 +1114,48 @@
                                     <button 
                                         onClick={() => {
                                             uploadLocalDataToCloud();
-                                            setShowGroupModal(false);
                                         }}
                                         className="w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold py-2.5 rounded-xl border border-emerald-200 flex items-center justify-center gap-2 transition-colors"
                                     >
                                         <IconCloudUpload /> Subir mis datos actuales a este grupo
                                     </button>
 
-                                    {/* Configuración rápida de Firebase si se usa desde Vercel / hosting propio */}
-                                    <details className="text-xs bg-slate-50 p-3 rounded-xl border border-slate-200 text-slate-600">
+                                    <details className="text-xs bg-slate-50 p-3 rounded-xl border border-slate-200 text-slate-600" open>
                                         <summary className="font-semibold cursor-pointer text-slate-700 hover:text-slate-900 select-none flex items-center justify-between">
                                             <span>⚙️ Configurar Nube en Vercel</span>
                                             <span className="text-[10px] text-slate-400">Paso a paso</span>
                                         </summary>
                                         <div className="mt-3 space-y-2 text-[11px] leading-relaxed">
                                             <p className="text-slate-600">
-                                                Para sincronizar dos teléfonos en tu propio Vercel/GitHub, pega la configuración gratuita de <strong>Google Firebase</strong> (JSON):
+                                                Pega el bloque completo que copiaste de Firebase aquí abajo:
                                             </p>
                                             <textarea 
                                                 id="firebase-json-input"
                                                 rows="4"
-                                                placeholder='{"apiKey": "AIzaSy...", "authDomain": "...", "projectId": "..."}'
+                                                placeholder='const firebaseConfig = { apiKey: "...", ... };'
                                                 className="w-full font-mono text-[10px] p-2 bg-white border border-slate-300 rounded-lg focus:ring-1 focus:ring-emerald-500"
                                             ></textarea>
                                             <button 
                                                 type="button"
                                                 onClick={() => {
-                                                    try {
-                                                        const val = document.getElementById('firebase-json-input').value.trim();
-                                                        if (!val) return;
-                                                        const parsed = JSON.parse(val);
-                                                        const ok = window.FirebaseBridge.saveCustomConfig(parsed);
-                                                        if (ok) {
-                                                            triggerToast("¡Conexión a la Nube activada!");
-                                                            setShowGroupModal(false);
-                                                        } else {
-                                                            triggerToast("Error al conectar con las credenciales.");
-                                                        }
-                                                    } catch(e) {
-                                                        triggerToast("JSON de Firebase no válido.");
+                                                    const val = document.getElementById('firebase-json-input').value.trim();
+                                                    if (!val) {
+                                                        triggerToast("Por favor pega la configuración de Firebase");
+                                                        return;
+                                                    }
+                                                    const saved = window.FirebaseBridge.saveCustomConfig(val);
+                                                    if (saved) {
+                                                        triggerToast("¡Nube conectada! Reiniciando app...");
+                                                        setTimeout(() => {
+                                                            window.location.reload();
+                                                        }, 1200);
+                                                    } else {
+                                                        triggerToast("No se reconocieron las claves de Firebase.");
                                                     }
                                                 }}
-                                                className="w-full bg-slate-700 hover:bg-slate-800 text-white py-1.5 rounded-lg font-medium transition-colors"
+                                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-lg font-bold transition-colors shadow-sm"
                                             >
-                                                Guardar Credenciales de Nube
+                                                Guardar y Activar Nube
                                             </button>
                                         </div>
                                     </details>
