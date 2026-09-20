@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Mis Finanzas</title>
+    <title>Mis Finanzas Compartidas</title>
     
-    <!-- React & ReactDOM (Librerías principales estables en UMD via CDNJS para máxima compatibilidad con el visor) -->
+    <!-- React & ReactDOM (Librerías principales estables en UMD) -->
     <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
     <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
     
-    <!-- Babel Standalone (Transpilador de JSX estable) -->
+    <!-- Babel (Transpilador estable) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
     
-    <!-- Tailwind CSS (Estilos en tiempo real) -->
+    <!-- Tailwind CSS (Estilos interactivos en tiempo real) -->
     <script src="https://cdn.tailwindcss.com"></script>
 
     <!-- Configuración para PWA (Instalación en celular) -->
@@ -21,12 +21,12 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#059669">
 
-    <!-- Configuración segura y asíncrona del Manifest para prevenir errores en el DOM -->
+    <!-- Configuración Manifest de forma asíncrona para PWA -->
     <link rel="manifest" id="manifest-link">
     <script>
         window.addEventListener('DOMContentLoaded', () => {
             const manifest = {
-                "name": "Mis Finanzas",
+                "name": "Mis Finanzas Compartidas",
                 "short_name": "Finanzas",
                 "start_url": ".",
                 "display": "standalone",
@@ -59,19 +59,82 @@
         .pb-safe {
             padding-bottom: env(safe-area-inset-bottom, 20px);
         }
+        .animate-fade-in {
+            animation: fadeIn 0.25s ease-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, deleteDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'mis-finanzas-compartidas';
+        let app = null;
+        let auth = null;
+        let db = null;
+
+        try {
+            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                const firebaseConfig = JSON.parse(__firebase_config);
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+            }
+        } catch (e) {
+            console.warn("Firebase operará en modo de reserva si no hay credenciales activas:", e);
+        }
+
+        // Puente global seguro para interacción de Firebase con React
+        window.FirebaseBridge = {
+            appId,
+            auth,
+            db,
+            isAvailable: () => !!db && !!auth,
+            initAuth: async () => {
+                if (!auth) return null;
+                try {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        const userCred = await signInWithCustomToken(auth, __initial_auth_token);
+                        return userCred.user;
+                    } else {
+                        const userCred = await signInAnonymously(auth);
+                        return userCred.user;
+                    }
+                } catch (e) {
+                    console.error("Error al autenticar usuario:", e);
+                    return null;
+                }
+            },
+            getPublicCollection: (collectionName) => {
+                if (!db) return null;
+                return collection(db, 'artifacts', appId, 'public', 'data', collectionName);
+            },
+            getPublicDoc: (collectionName, docId) => {
+                if (!db) return null;
+                return doc(db, 'artifacts', appId, 'public', 'data', collectionName, docId);
+            },
+            setDoc,
+            deleteDoc,
+            onSnapshot
+        };
+    </script>
 </head>
 <body class="bg-slate-50 font-sans text-slate-900">
     
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useMemo, useEffect } = React;
+        const { useState, useMemo, useEffect, useRef } = React;
 
-        // Iconos vectoriales SVG limpios y locales para evitar dependencias externas fallidas
-        const IconHome = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
-        const IconPlus = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>;
-        const IconTags = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 5 6.3 6.3a2.4 2.4 0 0 1 0 3.4L17 19"/><path d="M9.586 5.586A2 2 0 0 0 8.172 5H3v5.172a2 2 0 0 0 .586 1.414l8.204 8.204a2 2 0 0 0 2.828 0l4.204-4.204a2 2 0 0 0 0-2.828L10.614 4.586z"/><circle cx="7" cy="9" r="1"/></svg>;
+        // Iconos SVG Vectoriales autónomos y livianos
+        const IconHome = () => <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
+        const IconPlus = () => <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>;
+        const IconTags = () => <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 5 6.3 6.3a2.4 2.4 0 0 1 0 3.4L17 19"/><path d="M9.586 5.586A2 2 0 0 0 8.172 5H3v5.172a2 2 0 0 0 .586 1.414l8.204 8.204a2 2 0 0 0 2.828 0l4.204-4.204a2 2 0 0 0 0-2.828L10.614 4.586z"/><circle cx="7" cy="9" r="1"/></svg>;
         const IconSpreadsheet = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h2"/><path d="M8 17h2"/><path d="M14 13h2"/><path d="M14 17h2"/></svg>;
         const IconBanknote = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>;
         const IconLandmark = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="11"/><line x1="10" x2="10" y1="18" y2="11"/><line x1="14" x2="14" y1="18" y2="11"/><line x1="18" x2="18" y1="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>;
@@ -80,11 +143,31 @@
         const IconTrash = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>;
         const IconArchive = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="5" x="2" y="4" rx="2"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9"/><path d="M10 13h4"/></svg>;
         const IconArchiveRestore = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="5" x="2" y="4" rx="2"/><path d="M12 13v7"/><path d="m9 16 3-3 3 3"/><path d="M4 9v9a2 2 0 0 0 2 2h2"/><path d="M20 9v9a2 2 0 0 1-2 2h-2"/></svg>;
+        const IconUsers = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
+        const IconCopy = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>;
+        const IconCheck = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>;
+        const IconCloudUpload = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 14.89 4 15a5 5 0 0 0 5 5h10a4 4 0 0 0 1.3-7.8 7 7 0 0 0-13.6-2.9A4 4 0 0 0 4 14.89z"/><path d="M12 12v6"/><path d="m15 15-3-3-3 3"/></svg>;
 
         function App() {
             const [activeTab, setActiveTab] = useState('dashboard');
-            
-            // Configurar rango de fechas por defecto del 24 al 24
+            const [user, setUser] = useState(null);
+            const [isSyncing, setIsSyncing] = useState(false);
+            const [showGroupModal, setShowGroupModal] = useState(false);
+            const [toastMessage, setToastMessage] = useState('');
+            const [copied, setCopied] = useState(false);
+
+            // Generador o recuperación de Código de Grupo (ej. CASA-748)
+            const [groupCode, setGroupCode] = useState(() => {
+                const saved = localStorage.getItem('finanzas_group_code');
+                if (saved) return saved.toUpperCase();
+                const randomCode = 'FAMILIA-' + Math.floor(1000 + Math.random() * 9000);
+                localStorage.setItem('finanzas_group_code', randomCode);
+                return randomCode;
+            });
+
+            const [inputGroupCode, setInputGroupCode] = useState('');
+
+            // Fechas iniciales por defecto (rango del 24 al 24)
             const initDate = new Date();
             const initDay = initDate.getDate();
             let startMonthDate = new Date(initDate);
@@ -105,7 +188,7 @@
                 end: endMonthDate.toISOString().split('T')[0]
             });
 
-            // Persistencia segura sin subcategorías
+            // Datos principales (Categorías y Transacciones)
             const [categories, setCategories] = useState(() => {
                 try {
                     const saved = localStorage.getItem('finanzas_categories');
@@ -114,7 +197,6 @@
                         { id: '2', name: 'Transporte', budget: 40000, isActive: true },
                     ];
                 } catch (e) {
-                    console.error("Error al cargar categorías:", e);
                     return [
                         { id: '1', name: 'Alimentación', budget: 150000, isActive: true },
                         { id: '2', name: 'Transporte', budget: 40000, isActive: true },
@@ -127,12 +209,11 @@
                     const saved = localStorage.getItem('finanzas_transactions');
                     return saved ? JSON.parse(saved) : [];
                 } catch (e) {
-                    console.error("Error al cargar transacciones:", e);
                     return [];
                 }
             });
 
-            // Guardar automáticamente
+            // Respaldo secundario en localStorage
             useEffect(() => {
                 localStorage.setItem('finanzas_categories', JSON.stringify(categories));
             }, [categories]);
@@ -141,7 +222,158 @@
                 localStorage.setItem('finanzas_transactions', JSON.stringify(transactions));
             }, [transactions]);
 
-            // Formulario Gastos (Sin subcategorías)
+            useEffect(() => {
+                let unsubscribeCategories = null;
+                let unsubscribeTransactions = null;
+
+                async function setupRealtimeSync() {
+                    if (!window.FirebaseBridge || !window.FirebaseBridge.isAvailable()) {
+                        return;
+                    }
+
+                    setIsSyncing(true);
+                    const authUser = await window.FirebaseBridge.initAuth();
+                    setUser(authUser);
+
+                    if (!authUser) {
+                        setIsSyncing(false);
+                        return;
+                    }
+
+                    const categoriesColRef = window.FirebaseBridge.getPublicCollection('categories');
+                    const transactionsColRef = window.FirebaseBridge.getPublicCollection('transactions');
+
+                    if (!categoriesColRef || !transactionsColRef) {
+                        setIsSyncing(false);
+                        return;
+                    }
+
+                    // Escuchar cambios en Categorías
+                    unsubscribeCategories = window.FirebaseBridge.onSnapshot(
+                        categoriesColRef,
+                        (snapshot) => {
+                            const remoteCats = [];
+                            snapshot.forEach(docSnap => {
+                                const data = docSnap.data();
+                                if (data.groupCode === groupCode) {
+                                    remoteCats.push({ ...data, id: docSnap.id });
+                                }
+                            });
+
+                            if (remoteCats.length > 0) {
+                                setCategories(remoteCats);
+                            }
+                            setIsSyncing(false);
+                        },
+                        (error) => {
+                            console.error("Error al sincronizar categorías:", error);
+                            setIsSyncing(false);
+                        }
+                    );
+
+                    // Escuchar cambios en Transacciones
+                    unsubscribeTransactions = window.FirebaseBridge.onSnapshot(
+                        transactionsColRef,
+                        (snapshot) => {
+                            const remoteTxs = [];
+                            snapshot.forEach(docSnap => {
+                                const data = docSnap.data();
+                                if (data.groupCode === groupCode) {
+                                    remoteTxs.push({ ...data, id: docSnap.id });
+                                }
+                            });
+
+                            setTransactions(remoteTxs);
+                            setIsSyncing(false);
+                        },
+                        (error) => {
+                            console.error("Error al sincronizar transacciones:", error);
+                            setIsSyncing(false);
+                        }
+                    );
+                }
+
+                setupRealtimeSync();
+
+                return () => {
+                    if (unsubscribeCategories) unsubscribeCategories();
+                    if (unsubscribeTransactions) unsubscribeTransactions();
+                };
+            }, [groupCode]);
+
+            // Función para mostrar avisos temporales sin usar alert()
+            const triggerToast = (msg) => {
+                setToastMessage(msg);
+                setTimeout(() => setToastMessage(''), 3500);
+            };
+
+            // Copiar código de grupo al portapapeles
+            const copyGroupCode = () => {
+                const textArea = document.createElement("textarea");
+                textArea.value = groupCode;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand("copy");
+                document.body.removeChild(textArea);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+                triggerToast(`Código "${groupCode}" copiado al portapapeles`);
+            };
+
+            // Cambiar o Unirse a otro Código de Grupo
+            const handleJoinGroup = (e) => {
+                e.preventDefault();
+                if (!inputGroupCode.trim()) return;
+                const cleanCode = inputGroupCode.trim().toUpperCase().replace(/\s+/g, '-');
+                setGroupCode(cleanCode);
+                localStorage.setItem('finanzas_group_code', cleanCode);
+                setInputGroupCode('');
+                setShowGroupModal(false);
+                triggerToast(`Te uniste al grupo "${cleanCode}"`);
+            };
+
+            // Sincronizar/Subir datos de la memoria local a la nube para el grupo actual
+            const uploadLocalDataToCloud = async () => {
+                if (!window.FirebaseBridge || !window.FirebaseBridge.isAvailable()) {
+                    triggerToast("Modo sin conexión. Los datos están seguros en tu teléfono.");
+                    return;
+                }
+
+                if (!user) {
+                    await window.FirebaseBridge.initAuth();
+                }
+
+                setIsSyncing(true);
+                try {
+                    // Subir categorías
+                    for (const cat of categories) {
+                        const docRef = window.FirebaseBridge.getPublicDoc('categories', cat.id);
+                        await window.FirebaseBridge.setDoc(docRef, {
+                            ...cat,
+                            groupCode,
+                            updatedAt: new Date().toISOString()
+                        }, { merge: true });
+                    }
+
+                    // Subir transacciones
+                    for (const tx of transactions) {
+                        const docRef = window.FirebaseBridge.getPublicDoc('transactions', tx.id);
+                        await window.FirebaseBridge.setDoc(docRef, {
+                            ...tx,
+                            groupCode,
+                            updatedAt: new Date().toISOString()
+                        }, { merge: true });
+                    }
+
+                    triggerToast("¡Datos subidos a la nube exitosamente!");
+                } catch (e) {
+                    console.error("Error al respaldar en la nube:", e);
+                    triggerToast("Ocurrió un error al subir los datos.");
+                } finally {
+                    setIsSyncing(false);
+                }
+            };
+
             const [editingTxId, setEditingTxId] = useState(null);
             const [newTx, setNewTx] = useState({ 
                 date: new Date().toISOString().split('T')[0], 
@@ -151,17 +383,15 @@
                 method: 'Débito' 
             });
             
-            // Formulario Categorías (Sin subcategorías)
             const [newCat, setNewCat] = useState({ name: '', budget: '' });
             const [editingCatId, setEditingCatId] = useState(null);
             const [editCatData, setEditCatData] = useState({ name: '', budget: '' });
-            const [catErrorMsg, setCatErrorMsg] = useState("");
 
             const filteredTransactions = useMemo(() => {
                 return transactions.filter(t => t.date >= dateRange.start && t.date <= dateRange.end);
             }, [transactions, dateRange]);
 
-            // Agrupar transacciones cronológicamente por fechas (Orden desc: más recientes arriba)
+            // Agrupar gastos por fecha descendente
             const groupedTransactions = useMemo(() => {
                 const groups = {};
                 filteredTransactions.forEach(tx => {
@@ -197,20 +427,38 @@
             const totalSpent = filteredTransactions.reduce((sum, t) => sum + Number(t.amount), 0);
             const totalRemaining = totalBudget - totalSpent;
 
-            // Manejadores de gastos
-            const handleAddTransaction = (e) => {
+            // Guardar / Editar Gasto (Sincronizado con Firestore)
+            const handleAddTransaction = async (e) => {
                 e.preventDefault();
                 if (!newTx.amount || !newTx.place || !newTx.categoryId) return;
                 
+                const txId = editingTxId || Date.now().toString();
+                const transactionData = {
+                    ...newTx,
+                    id: txId,
+                    groupCode,
+                    amount: Number(newTx.amount),
+                    updatedAt: new Date().toISOString()
+                };
+
+                // Actualizar estado local
                 if (editingTxId) {
-                    setTransactions(transactions.map(t => 
-                        t.id === editingTxId ? { ...newTx, id: editingTxId } : t
-                    ));
+                    setTransactions(transactions.map(t => t.id === editingTxId ? transactionData : t));
                     setEditingTxId(null);
                 } else {
-                    setTransactions([{ ...newTx, id: Date.now().toString() }, ...transactions]);
+                    setTransactions([transactionData, ...transactions]);
                 }
-                
+
+                // Sincronizar con la nube si está disponible
+                if (window.FirebaseBridge && window.FirebaseBridge.isAvailable()) {
+                    try {
+                        const docRef = window.FirebaseBridge.getPublicDoc('transactions', txId);
+                        await window.FirebaseBridge.setDoc(docRef, transactionData, { merge: true });
+                    } catch (err) {
+                        console.error("Error guardando transacción en Firestore:", err);
+                    }
+                }
+
                 setNewTx({ date: new Date().toISOString().split('T')[0], amount: '', place: '', categoryId: '', method: 'Débito' }); 
                 setActiveTab('dashboard'); 
             };
@@ -227,49 +475,107 @@
                 setActiveTab('dashboard');
             };
 
-            const deleteTx = (id) => {
+            const deleteTx = async (id) => {
                 setTransactions(transactions.filter(t => t.id !== id));
+
+                if (window.FirebaseBridge && window.FirebaseBridge.isAvailable()) {
+                    try {
+                        const docRef = window.FirebaseBridge.getPublicDoc('transactions', id);
+                        await window.FirebaseBridge.deleteDoc(docRef);
+                    } catch (err) {
+                        console.error("Error eliminando transacción de Firestore:", err);
+                    }
+                }
+                triggerToast("Gasto eliminado");
             };
 
-            // Manejadores de Categorías
-            const handleAddCategory = (e) => {
+            // Categorías
+            const handleAddCategory = async (e) => {
                 e.preventDefault();
                 if (!newCat.name || !newCat.budget) return;
 
-                setCategories([...categories, { 
-                    id: Date.now().toString(), 
-                    name: newCat.name, 
-                    budget: Number(newCat.budget), 
-                    isActive: true 
-                }]);
+                const catId = Date.now().toString();
+                const categoryData = {
+                    id: catId,
+                    name: newCat.name,
+                    budget: Number(newCat.budget),
+                    isActive: true,
+                    groupCode,
+                    updatedAt: new Date().toISOString()
+                };
+
+                setCategories([...categories, categoryData]);
                 setNewCat({ name: '', budget: '' });
+
+                if (window.FirebaseBridge && window.FirebaseBridge.isAvailable()) {
+                    try {
+                        const docRef = window.FirebaseBridge.getPublicDoc('categories', catId);
+                        await window.FirebaseBridge.setDoc(docRef, categoryData, { merge: true });
+                    } catch (err) {
+                        console.error("Error guardando categoría en Firestore:", err);
+                    }
+                }
             };
 
-            const handleUpdateCategory = (e) => {
+            const handleUpdateCategory = async (e) => {
                 e.preventDefault();
+                const updatedCat = {
+                    id: editingCatId,
+                    name: editCatData.name,
+                    budget: Number(editCatData.budget),
+                    isActive: true,
+                    groupCode,
+                    updatedAt: new Date().toISOString()
+                };
 
-                setCategories(categories.map(cat => 
-                    cat.id === editingCatId 
-                        ? { ...cat, name: editCatData.name, budget: Number(editCatData.budget) } 
-                        : cat
-                ));
+                setCategories(categories.map(cat => cat.id === editingCatId ? { ...cat, ...updatedCat } : cat));
                 setEditingCatId(null);
+
+                if (window.FirebaseBridge && window.FirebaseBridge.isAvailable()) {
+                    try {
+                        const docRef = window.FirebaseBridge.getPublicDoc('categories', editingCatId);
+                        await window.FirebaseBridge.setDoc(docRef, updatedCat, { merge: true });
+                    } catch (err) {
+                        console.error("Error actualizando categoría en Firestore:", err);
+                    }
+                }
             };
 
-            const toggleCategoryStatus = (id) => {
-                setCategories(categories.map(cat => 
-                    cat.id === id ? { ...cat, isActive: !cat.isActive } : cat
-                ));
+            const toggleCategoryStatus = async (id) => {
+                const targetCat = categories.find(c => c.id === id);
+                if (!targetCat) return;
+
+                const updatedStatus = !targetCat.isActive;
+                setCategories(categories.map(cat => cat.id === id ? { ...cat, isActive: updatedStatus } : cat));
+
+                if (window.FirebaseBridge && window.FirebaseBridge.isAvailable()) {
+                    try {
+                        const docRef = window.FirebaseBridge.getPublicDoc('categories', id);
+                        await window.FirebaseBridge.setDoc(docRef, { ...targetCat, isActive: updatedStatus, updatedAt: new Date().toISOString() }, { merge: true });
+                    } catch (err) {
+                        console.error("Error alternando estado de categoría:", err);
+                    }
+                }
             };
 
-            const deleteCategory = (id) => {
+            const deleteCategory = async (id) => {
                 const hasTransactions = transactions.some(t => t.categoryId === id);
                 if (hasTransactions) {
-                    setCatErrorMsg("No puedes eliminar esta categoría porque tiene gastos asociados. Mejor archívala usando el ícono amarillo.");
-                    setTimeout(() => setCatErrorMsg(""), 6000);
+                    triggerToast("No puedes eliminar esta categoría porque tiene gastos asociados. Archívala en su lugar.");
                     return;
                 }
+
                 setCategories(categories.filter(cat => cat.id !== id));
+
+                if (window.FirebaseBridge && window.FirebaseBridge.isAvailable()) {
+                    try {
+                        const docRef = window.FirebaseBridge.getPublicDoc('categories', id);
+                        await window.FirebaseBridge.deleteDoc(docRef);
+                    } catch (err) {
+                        console.error("Error eliminando categoría:", err);
+                    }
+                }
+                triggerToast("Categoría eliminada");
             };
 
             const exportToCSV = () => {
@@ -286,7 +592,7 @@
                 const url = URL.createObjectURL(blob);
                 
                 link.setAttribute('href', url);
-                link.setAttribute('download', `Finanzas_${dateRange.start}_al_${dateRange.end}.csv`);
+                link.setAttribute('download', `Finanzas_${groupCode}_${dateRange.start}_al_${dateRange.end}.csv`);
                 link.style.visibility = 'hidden';
                 document.body.appendChild(link);
                 link.click();
@@ -294,7 +600,36 @@
             };
 
             const renderDashboard = () => (
-                <div className="space-y-6 pb-20">
+                <div className="space-y-6 pb-20 animate-fade-in">
+                    {/* Barra informativa de sincronización de Grupo */}
+                    <div className="bg-slate-800 text-white p-3.5 rounded-xl shadow-sm flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2.5 overflow-hidden">
+                            <span className="p-1.5 bg-emerald-500/20 text-emerald-400 rounded-lg shrink-0">
+                                <IconUsers />
+                            </span>
+                            <div className="truncate">
+                                <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Grupo Compartido</p>
+                                <p className="font-bold text-sm tracking-wide text-emerald-400 truncate">{groupCode}</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            <button 
+                                onClick={copyGroupCode}
+                                className="p-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-xs font-medium transition-colors flex items-center gap-1"
+                                title="Copiar código para compartir"
+                            >
+                                {copied ? <IconCheck /> : <IconCopy />}
+                                <span className="hidden sm:inline">{copied ? "Copiado" : "Copiar"}</span>
+                            </button>
+                            <button 
+                                onClick={() => setShowGroupModal(true)}
+                                className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition-colors"
+                            >
+                                Cambiar
+                            </button>
+                        </div>
+                    </div>
+
                     <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
                         <h2 className="font-bold text-lg text-slate-800 mb-3">Periodo de Resumen</h2>
                         <div className="flex items-center gap-2">
@@ -340,8 +675,15 @@
                     </div>
 
                     <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-                        <div className="p-4 border-b border-slate-100 bg-slate-50">
+                        <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
                             <h3 className="font-semibold text-slate-700">Presupuesto por Categoría</h3>
+                            <button 
+                                onClick={uploadLocalDataToCloud}
+                                className="text-xs text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-md flex items-center gap-1 transition-colors"
+                                title="Sincronizar todo con la nube"
+                            >
+                                <IconCloudUpload /> Respaldar en Nube
+                            </button>
                         </div>
                         <div className="p-4 space-y-5">
                             {categoryStats.map(cat => (
@@ -394,14 +736,14 @@
                                                 const cat = categories.find(c => c.id === tx.categoryId);
                                                 return (
                                                     <div key={tx.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-150 shadow-sm">
-                                                        <div className="flex-1">
+                                                        <div className="flex-1 pr-2">
                                                             <p className="font-semibold text-slate-800">{tx.place}</p>
                                                             <p className="text-xs text-slate-500 mt-0.5">
                                                                 <span className="font-medium text-emerald-600">{cat ? cat.name : 'Desconocida'}</span>
                                                                 <span className="text-slate-400"> • {tx.method}</span>
                                                             </p>
                                                         </div>
-                                                        <div className="flex flex-col items-end gap-2">
+                                                        <div className="flex flex-col items-end gap-2 shrink-0">
                                                             <span className="font-bold text-slate-850 text-sm">₡{Number(tx.amount).toLocaleString()}</span>
                                                             <div className="flex gap-2">
                                                                 <button 
@@ -432,129 +774,121 @@
                 </div>
             );
 
-            const renderAddTransaction = () => {
-                return (
-                    <div className="space-y-6 pb-20">
-                        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100">
-                            <h2 className="font-bold text-xl text-slate-800 mb-4">
-                                {editingTxId ? 'Editar Gasto' : 'Nuevo Gasto'}
-                            </h2>
-                            <form onSubmit={handleAddTransaction} className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Fecha</label>
-                                    <input 
-                                        type="date" 
-                                        required
-                                        value={newTx.date}
-                                        onChange={(e) => setNewTx({...newTx, date: e.target.value})}
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                                    />
-                                </div>
+            const renderAddTransaction = () => (
+                <div className="space-y-6 pb-20 animate-fade-in">
+                    <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100">
+                        <h2 className="font-bold text-xl text-slate-800 mb-4">
+                            {editingTxId ? 'Editar Gasto' : 'Nuevo Gasto'}
+                        </h2>
+                        <form onSubmit={handleAddTransaction} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Fecha</label>
+                                <input 
+                                    type="date" 
+                                    required
+                                    value={newTx.date}
+                                    onChange={(e) => setNewTx({...newTx, date: e.target.value})}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                />
+                            </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Monto (₡)</label>
-                                    <input 
-                                        type="number" 
-                                        required
-                                        min="0"
-                                        placeholder="Ej. 15000"
-                                        value={newTx.amount}
-                                        onChange={(e) => setNewTx({...newTx, amount: e.target.value})}
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                                    />
-                                </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Monto (₡)</label>
+                                <input 
+                                    type="number" 
+                                    required
+                                    min="0"
+                                    placeholder="Ej. 15000"
+                                    value={newTx.amount}
+                                    onChange={(e) => setNewTx({...newTx, amount: e.target.value})}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                />
+                            </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Lugar / Descripción</label>
-                                    <input 
-                                        type="text" 
-                                        required
-                                        placeholder="Ej. Supermercado, Cine..."
-                                        value={newTx.place}
-                                        onChange={(e) => setNewTx({...newTx, place: e.target.value})}
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                                    />
-                                </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Lugar / Descripción</label>
+                                <input 
+                                    type="text" 
+                                    required
+                                    placeholder="Ej. Supermercado, Cine..."
+                                    value={newTx.place}
+                                    onChange={(e) => setNewTx({...newTx, place: e.target.value})}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                />
+                            </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Categoría</label>
-                                    <select 
-                                        required
-                                        value={newTx.categoryId}
-                                        onChange={(e) => setNewTx({...newTx, categoryId: e.target.value})}
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                                    >
-                                        <option value="" disabled>Selecciona una categoría</option>
-                                        {categories.filter(cat => cat.isActive).map(cat => (
-                                            <option key={cat.id} value={cat.id}>{cat.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Categoría</label>
+                                <select 
+                                    required
+                                    value={newTx.categoryId}
+                                    onChange={(e) => setNewTx({...newTx, categoryId: e.target.value})}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                >
+                                    <option value="" disabled>Selecciona una categoría</option>
+                                    {categories.filter(cat => cat.isActive).map(cat => (
+                                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                    ))}
+                                </select>
+                            </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-2">Método de Pago</label>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        {['Efectivo', 'Débito', 'Crédito'].map(method => (
-                                            <button
-                                                key={method}
-                                                type="button"
-                                                onClick={() => setNewTx({...newTx, method})}
-                                                className={`py-2 px-1 rounded-lg border text-sm flex flex-col items-center justify-center gap-1 transition-colors
-                                                    ${newTx.method === method 
-                                                    ? 'bg-emerald-50 border-emerald-500 text-emerald-700 font-semibold shadow-sm' 
-                                                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-                                            >
-                                                {method === 'Efectivo' && <IconBanknote />}
-                                                {method === 'Débito' && <IconLandmark />}
-                                                {method === 'Crédito' && <IconCreditCard />}
-                                                {method}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {editingTxId ? (
-                                    <div className="flex gap-2 mt-4">
-                                        <button 
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">Método de Pago</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {['Efectivo', 'Débito', 'Crédito'].map(method => (
+                                        <button
+                                            key={method}
                                             type="button"
-                                            onClick={cancelEditTx}
-                                            className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-3.5 rounded-xl transition-colors"
+                                            onClick={() => setNewTx({...newTx, method})}
+                                            className={`py-2 px-1 rounded-lg border text-sm flex flex-col items-center justify-center gap-1 transition-colors
+                                                ${newTx.method === method 
+                                                ? 'bg-emerald-50 border-emerald-500 text-emerald-700 font-semibold shadow-sm' 
+                                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
                                         >
-                                            Cancelar
+                                            {method === 'Efectivo' && <IconBanknote />}
+                                            {method === 'Débito' && <IconLandmark />}
+                                            {method === 'Crédito' && <IconCreditCard />}
+                                            {method}
                                         </button>
-                                        <button 
-                                            type="submit"
-                                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-md transition-colors"
-                                        >
-                                            Actualizar
-                                        </button>
-                                    </div>
-                                ) : (
+                                    ))}
+                                </div>
+                            </div>
+
+                            {editingTxId ? (
+                                <div className="flex gap-2 mt-4">
+                                    <button 
+                                        type="button"
+                                        onClick={cancelEditTx}
+                                        className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-3.5 rounded-xl transition-colors"
+                                    >
+                                        Cancelar
+                                    </button>
                                     <button 
                                         type="submit"
-                                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-md transition-colors mt-4"
+                                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-md transition-colors"
                                     >
-                                        Guardar Gasto
+                                        Actualizar
                                     </button>
-                                )}
-                            </form>
-                        </div>
+                                </div>
+                            ) : (
+                                <button 
+                                    type="submit"
+                                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-md transition-colors mt-4"
+                                >
+                                    Guardar Gasto
+                                </button>
+                            )}
+                        </form>
                     </div>
-                );
-            };
+                </div>
+            );
 
             const renderCategories = () => (
-                <div className="space-y-6 pb-20">
+                <div className="space-y-6 pb-20 animate-fade-in">
                     <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100">
                         <h2 className="font-bold text-xl text-slate-800 mb-4">
                             {editingCatId ? 'Editar Categoría' : 'Nueva Categoría'}
                         </h2>
-                        
-                        {catErrorMsg && (
-                            <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded-lg border border-red-100">
-                                {catErrorMsg}
-                            </div>
-                        )}
 
                         {editingCatId ? (
                             <form onSubmit={handleUpdateCategory} className="space-y-4">
@@ -684,9 +1018,95 @@
 
             return (
                 <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-                    <header className="bg-emerald-600 text-white pt-6 pb-4 px-4 shadow-md sticky top-0 z-10">
-                        <h1 className="text-2xl font-bold text-center">Mis Finanzas</h1>
+                    <header className="bg-emerald-600 text-white pt-5 pb-4 px-4 shadow-md sticky top-0 z-10 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-xl font-bold">Mis Finanzas</h1>
+                            {isSyncing && (
+                                <span className="inline-block w-2 h-2 rounded-full bg-emerald-300 animate-ping" title="Sincronizando..."></span>
+                            )}
+                        </div>
+                        
+                        <button 
+                            onClick={() => setShowGroupModal(true)}
+                            className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors border border-emerald-500/30"
+                        >
+                            <IconUsers />
+                            <span>Grupo</span>
+                        </button>
                     </header>
+
+                    {/* Toast flotante para avisos sin alert() */}
+                    {toastMessage && (
+                        <div className="fixed top-16 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-xs px-4 py-2.5 rounded-full shadow-lg z-50 animate-fade-in flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                            <span>{toastMessage}</span>
+                        </div>
+                    )}
+
+                    {/* Modal para Unirse / Compartir Grupo */}
+                    {showGroupModal && (
+                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+                            <div className="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl space-y-4">
+                                <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                                    <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                                        <IconUsers /> Compartir Presupuesto
+                                    </h3>
+                                    <button 
+                                        onClick={() => setShowGroupModal(false)}
+                                        className="text-slate-400 hover:text-slate-600 font-bold p-1 text-lg"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+
+                                <div className="space-y-2 bg-emerald-50 p-3.5 rounded-xl border border-emerald-100">
+                                    <p className="text-xs text-emerald-800 font-medium">Tu Código de Grupo Actual:</p>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-lg font-black text-emerald-900 tracking-wider">{groupCode}</span>
+                                        <button 
+                                            onClick={copyGroupCode}
+                                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1 transition-colors"
+                                        >
+                                            {copied ? <IconCheck /> : <IconCopy />}
+                                            {copied ? "Copiado" : "Copiar"}
+                                        </button>
+                                    </div>
+                                    <p className="text-[11px] text-emerald-700">
+                                        Comparte este código con la otra persona para que ambos vean y editen las mismas finanzas en tiempo real.
+                                    </p>
+                                </div>
+
+                                <form onSubmit={handleJoinGroup} className="space-y-3 pt-2">
+                                    <label className="block text-xs font-semibold text-slate-700">Unirse al Código de otra persona:</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Ej. FAMILIA-2026"
+                                        value={inputGroupCode}
+                                        onChange={(e) => setInputGroupCode(e.target.value)}
+                                        className="w-full uppercase bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 font-semibold"
+                                    />
+                                    <button 
+                                        type="submit"
+                                        className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-2.5 rounded-xl text-sm transition-colors"
+                                    >
+                                        Unirme a este Grupo
+                                    </button>
+                                </form>
+
+                                <div className="pt-2 border-t border-slate-100">
+                                    <button 
+                                        onClick={() => {
+                                            uploadLocalDataToCloud();
+                                            setShowGroupModal(false);
+                                        }}
+                                        className="w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold py-2.5 rounded-xl border border-emerald-200 flex items-center justify-center gap-2 transition-colors"
+                                    >
+                                        <IconCloudUpload /> Subir mis datos actuales a este grupo
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     <main className="p-4 max-w-md mx-auto">
                         {activeTab === 'dashboard' && renderDashboard()}
