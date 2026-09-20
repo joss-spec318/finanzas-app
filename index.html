@@ -141,12 +141,17 @@
                         const userCred = await signInWithCustomToken(auth, __initial_auth_token);
                         return userCred.user;
                     } else {
-                        const userCred = await signInAnonymously(auth);
-                        return userCred.user;
+                        try {
+                            const userCred = await signInAnonymously(auth);
+                            return userCred.user;
+                        } catch (authErr) {
+                            console.warn("Autenticación anónima no habilitada en Firebase, continuando sin auth estricta:", authErr);
+                            return { uid: 'usuario-' + Math.random().toString(36).substring(2, 9) };
+                        }
                     }
                 } catch (e) {
                     console.error("Error de autenticación:", e);
-                    return null;
+                    return { uid: 'usuario-invitado' };
                 }
             },
             getPublicCollection: (collectionName) => {
@@ -300,6 +305,7 @@
                         },
                         (error) => {
                             console.error("Error al sincronizar categorías:", error);
+                            triggerToast("Error en Firestore: Revisa las Reglas en Firebase Console");
                             setIsSyncing(false);
                         }
                     );
@@ -320,6 +326,7 @@
                         },
                         (error) => {
                             console.error("Error al sincronizar transacciones:", error);
+                            triggerToast("Error de Firestore: Permisos denegados por Reglas");
                             setIsSyncing(false);
                         }
                     );
@@ -1074,6 +1081,19 @@
                                     >
                                         ✕
                                     </button>
+                                </div>
+
+                                <div className="flex items-center justify-between text-xs px-3 py-2 bg-slate-100 rounded-lg">
+                                    <span className="font-medium text-slate-600">Estado de Nube:</span>
+                                    {window.FirebaseBridge && window.FirebaseBridge.isAvailable() ? (
+                                        <span className="bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                                            <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Conectada
+                                        </span>
+                                    ) : (
+                                        <span className="bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                                            <span className="w-2 h-2 rounded-full bg-amber-500"></span> No configurada
+                                        </span>
+                                    )}
                                 </div>
 
                                 <div className="space-y-2 bg-emerald-50 p-3.5 rounded-xl border border-emerald-100">
